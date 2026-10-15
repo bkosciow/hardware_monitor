@@ -359,29 +359,31 @@ body.offline .card { opacity: .65; }
   function extraOf(s) {
     const out = {};
     const cpu = s.cpu || {};
-    out['cpu'] = cpu.temperature_c == null ? [] : [`${cpu.temperature_c} °C`];
+    const ram = s.ram || {};
+    const pcLines = [];
+    if (cpu.temperature_c != null) pcLines.push(`${cpu.temperature_c} °C`);
+    if (ram.total_mib) pcLines.push(`${gbs(ram.used_mib)} / ${gbs(ram.total_mib)}`);
+    out['pc'] = pcLines;
     (s.gpus || []).forEach((g, i) => {
       const lines = [];
       if (g.vram_used_mib != null && g.vram_total_mib) lines.push(`${gbs(g.vram_used_mib)} / ${gbs(g.vram_total_mib)}`);
       if (g.power_current_w != null || g.power_max_w != null) lines.push(`${fmtW(g.power_current_w)} / ${fmtW(g.power_max_w)} W`);
       out[`gpu${i}`] = lines;
     });
-    const ram = s.ram || {};
-    out['ram'] = ram.total_mib ? [`${gbs(ram.used_mib)} / ${gbs(ram.total_mib)}`] : [];
     return out;
   }
 
   function rowsOf(s) {
     const rows = [];
     const cpu = s.cpu || {};
-    rows.push({ id: 'cpu-util', label: 'Util', text: fmtPct(cpu.utilization_pct), level: lvlUtil(cpu.utilization_pct), pct: cpu.utilization_pct });
+    rows.push({ id: 'cpu-util', label: 'CPU', text: fmtPct(cpu.utilization_pct), level: lvlUtil(cpu.utilization_pct), pct: cpu.utilization_pct });
+    const ram = s.ram || {};
+    const rp = ram.total_mib ? (ram.used_mib / ram.total_mib) * 100 : null;
+    rows.push({ id: 'ram-used', label: 'RAM', text: fmtPct(rp), level: lvlUtil(rp), pct: rp });
     (s.gpus || []).forEach((g, i) => {
       rows.push({ id: `g${i}-temp`, label: 'Temp', text: g.temperature_c == null ? '—' : `${g.temperature_c} °C`, level: lvlTemp(g.temperature_c), pct: g.temperature_c });
       rows.push({ id: `g${i}-util`, label: 'Util', text: fmtPct(g.utilization_pct), level: lvlUtil(g.utilization_pct), pct: g.utilization_pct });
     });
-    const ram = s.ram || {};
-    const rp = ram.total_mib ? (ram.used_mib / ram.total_mib) * 100 : null;
-    rows.push({ id: 'ram-used', label: 'Used', text: fmtPct(rp), level: lvlUtil(rp), pct: rp });
     return rows;
   }
 
@@ -389,11 +391,10 @@ body.offline .card { opacity: .65; }
     const cpu = s.cpu || {};
     const extras = extraOf(s);
     const rows = rowsOf(s);
-    let html = cardHtml('cpu', 'CPU', cpu.name || '', extras['cpu'], rows.slice(0, 1));
+    let html = cardHtml('pc', 'PC', cpu.name || '', extras['pc'], rows.slice(0, 2));
     (s.gpus || []).forEach((g, i) => {
-      html += cardHtml(`gpu${i}`, `GPU ${i}`, g.name || '', extras[`gpu${i}`], rows.slice(1 + i * 2, 3 + i * 2));
+      html += cardHtml(`gpu${i}`, `GPU ${i}`, g.name || '', extras[`gpu${i}`], rows.slice(2 + i * 2, 4 + i * 2));
     });
-    html += cardHtml('ram', 'RAM', '', extras['ram'], rows.slice(-1));
     cardsEl.innerHTML = html;
   }
 
