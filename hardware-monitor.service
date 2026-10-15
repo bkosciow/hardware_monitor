@@ -1,0 +1,13 @@
+[Unit]
+Description=Hardware Monitor REST API (GPU/CPU/RAM stats)
+After=network.target
+
+[Service]
+User=kosci
+WorkingDirectory=/home/kosci/services/hardware_monitor
+ExecStart=/home/kosci/services/hardware_monitor/venv/bin/python /home/kosci/services/hardware_monitor/app.py
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

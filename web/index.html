@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000" id="metaTheme">
+<title>Hardware Monitor</title>
+<style>
+* { box-sizing: border-box; }
+
+:root, [data-theme="dark"] {
+  --bg: #000;
+  --card: #0e0f13;
+  --border: rgba(255, 255, 255, .08);
+  --text: #e9eaee;
+  --muted: #8a8f9c;
+  --track: rgba(255, 255, 255, .07);
+  --overlay: rgba(0, 0, 0, .55);
+  /* temp: <=40 | <=60 | <=80 | 81+ */
+  /* util: <=30 | <=60 | <=85 | 86+ */
+  --c0: #22c55e;
+  --c1: #facc15;
+  --c2: #fb923c;
+  --c3: #f87171;
+}
+[data-theme="light"] {
+  --bg: #f4f5f7;
+  --card: #ffffff;
+  --border: rgba(15, 17, 20, .09);
+  --text: #16181d;
+  --muted: #697080;
+  --track: rgba(15, 17, 20, .08);
+  --overlay: rgba(0, 0, 0, .35);
+  --c0: #16a34a;
+  --c1: #ca8a04;
+  --c2: #ea580c;
+  --c3: #dc2626;
+}
+
+html { height: 100%; }
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  overscroll-behavior: none;
+  transition: background-color .25s ease, color .25s ease;
+}
+
+/* ---------------------------------------------------------------- header */
+.top {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
+  background: var(--bg);
+  transition: background-color .25s ease;
+}
+.live { display: flex; align-items: center; gap: 10px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: #ef4444; }
+.dot.online { background: var(--c0); animation: pulse 2.4s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+#clock { font-size: 22px; font-weight: 600; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+.actions { display: flex; gap: 4px; }
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.icon-btn:active { background: var(--track); color: var(--text); }
+.icon-btn svg { width: 20px; height: 20px; }
+
+/* ---------------------------------------------------------------- cards */
+main {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 12px 14px calc(28px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 14px 14px;
+  transition: background-color .25s ease, border-color .25s ease, opacity .3s ease;
+}
+body.offline .card { opacity: .65; }
+.card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.head-left { min-width: 0; }
+.card-head h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: .01em; }
+.sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.extra { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+
+/* bars */
+.row { display: grid; grid-template-columns: 42px 1fr 58px; align-items: center; gap: 10px; margin-top: 12px; }
+.row label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.track {
+  position: relative;
+  height: 14px;
+  border-radius: 7px;
+  background: var(--track);
+  overflow: hidden;
+  transition: background-color .25s ease;
+}
+.fill {
+  height: 100%;
+  border-radius: 7px;
+  width: 0;
+  background: var(--lv, var(--muted));
+  transition: width .5s ease, background-color .5s ease;
+}
+.value {
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--lv, var(--text));
+}
+.lv0 { --lv: var(--c0); }
+.lv1 { --lv: var(--c1); }
+.lv2 { --lv: var(--c2); }
+.lv3 { --lv: var(--c3); }
+
+/* ---------------------------------------------------------------- sheet */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  background: var(--overlay);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s ease;
+}
+.backdrop.show { opacity: 1; pointer-events: auto; }
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  max-width: 480px;
+  margin: 0 auto;
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  border-radius: 18px 18px 0 0;
+  padding: 16px 16px calc(18px + env(safe-area-inset-bottom));
+  transform: translateY(105%);
+  transition: transform .25s ease;
+}
+.sheet.show { transform: translateY(0); }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.sheet-head h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 0;
+  border-top: 1px solid var(--border);
+}
+.set-label { font-size: 14px; }
+.ctl { display: flex; align-items: center; }
+#intervalInput {
+  width: 76px;
+  font-size: 16px;
+  text-align: right;
+  background: var(--track);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 9px;
+  font-variant-numeric: tabular-nums;
+}
+.unit { color: var(--muted); font-size: 14px; margin-left: 6px; }
+.seg { display: flex; gap: 3px; background: var(--track); border-radius: 10px; padding: 3px; }
+.seg button {
+  min-width: 78px;
+  padding: 8px 14px;
+  font-size: 14px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.seg button.active { background: var(--card); color: var(--text); font-weight: 600; box-shadow: 0 1px 4px rgba(0, 0, 0, .3); }
+
+@media (prefers-reduced-motion: reduce) {
+  .fill, .dot.online { transition: none; animation: none; }
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="live">
+    <span class="dot" id="dot"></span>
+    <time id="clock">--:--:--</time>
+  </div>
+  <div class="actions">
+    <button class="icon-btn" id="themeBtn" aria-label="Switch theme"></button>
+    <button class="icon-btn" id="settingsBtn" aria-label="Settings"></button>
+  </div>
+</header>
+
+<main id="cards"></main>
+
+<div class="backdrop" id="backdrop"></div>
+<section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Settings">
+  <div class="sheet-head">
+    <h2>Settings</h2>
+    <button class="icon-btn" id="closeBtn" aria-label="Close"></button>
+  </div>
+  <div class="set-row">
+    <span class="set-label">Refresh interval</span>
+    <span class="ctl"><input id="intervalInput" type="number" min="1" max="3600" step="1" inputmode="numeric"><span class="unit">s</span></span>
+  </div>
+  <div class="set-row">
+    <span class="set-label">Theme</span>
+    <span class="seg" id="themeSeg">
+      <button type="button" data-t="dark">Dark</button>
+      <button type="button" data-t="light">Light</button>
+    </span>
+  </div>
+</section>
+
+<script>
+(() => {
+  'use strict';
+
+  const $ = (id) => document.getElementById(id);
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  };
+
+  const ICONS = {
+    sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.6M12 18.9v2.6M2.5 12h2.6M18.9 12h2.6M5.2 5.2l1.9 1.9M16.9 16.9l1.9 1.9M18.8 5.2l-1.9 1.9M7.1 16.9l-1.9 1.9"/></svg>',
+    moon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.6 13.4A8.5 8.5 0 1 1 10.6 3.4a7 7 0 0 0 10 10z"/></svg>',
+    gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+    close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  };
+  $('settingsBtn').innerHTML = ICONS.gear;
+  $('closeBtn').innerHTML = ICONS.close;
+
+  /* ------------------------------------------------------------ theme */
+  function applyTheme(t) {
+    document.documentElement.dataset.theme = t;
+    $('metaTheme').setAttribute('content', t === 'dark' ? '#000000' : '#f4f5f7');
+    $('themeBtn').innerHTML = t === 'dark' ? ICONS.sun : ICONS.moon;
+    document.querySelectorAll('#themeSeg button').forEach(b => b.classList.toggle('active', b.dataset.t === t));
+    store.set('theme', t);
+  }
+  $('themeBtn').addEventListener('click', () => {
+    applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+  });
+  document.querySelectorAll('#themeSeg button').forEach(b => {
+    b.addEventListener('click', () => applyTheme(b.dataset.t));
+  });
+
+  /* ------------------------------------------------- settings sheet */
+  const sheet = $('sheet'), backdrop = $('backdrop');
+  function openSheet() { sheet.classList.add('show'); backdrop.classList.add('show'); }
+  function closeSheet() { sheet.classList.remove('show'); backdrop.classList.remove('show'); }
+  $('settingsBtn').addEventListener('click', openSheet);
+  $('closeBtn').addEventListener('click', closeSheet);
+  backdrop.addEventListener('click', closeSheet);
+
+  /* ------------------------------------------------ refresh interval */
+  const DEFAULT_INTERVAL = 2;
+  function getInterval() {
+    const v = parseFloat(store.get('interval'));
+    return Number.isFinite(v) && v >= 1 ? Math.min(3600, Math.round(v)) : DEFAULT_INTERVAL;
+  }
+  const intervalInput = $('intervalInput');
+  intervalInput.value = getInterval();
+  intervalInput.addEventListener('change', () => {
+    let v = parseFloat(intervalInput.value);
+    if (!Number.isFinite(v) || v < 1) v = DEFAULT_INTERVAL;
+    v = Math.min(3600, Math.round(v));
+    store.set('interval', String(v));
+    intervalInput.value = v;
+    startTimer();
+  });
+
+  /* ------------------------------------------------------------ clock */
+  const clockEl = $('clock');
+  function tickClock() {
+    const d = new Date();
+    clockEl.textContent = [d.getHours(), d.getMinutes(), d.getSeconds()]
+      .map(n => String(n).padStart(2, '0')).join(':');
+  }
+  setInterval(tickClock, 1000);
+  tickClock();
+
+  /* ----------------------------------------------------------- render */
+  const cardsEl = $('cards'), dotEl = $('dot');
+
+  const clampPct = (v) => (Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 0);
+  const lvlTemp = (t) => (t == null ? null : t <= 40 ? 0 : t <= 60 ? 1 : t <= 80 ? 2 : 3);
+  const lvlUtil = (u) => (u == null ? null : u <= 30 ? 0 : u <= 60 ? 1 : u <= 85 ? 2 : 3);
+  const fmtPct = (v) => (Number.isFinite(v) ? `${Math.round(v * 10) / 10}%` : '—');
+  const gbs = (mib) => (mib == null ? '—' : `${Math.round((mib / 1024) * 10) / 10} GB`);
+  const fmtW = (v) => (!Number.isFinite(v) ? '—' : String(Math.round(v * 10) / 10).replace(/\.0$/, ''));
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+
+  function rowHtml(r) {
+    const lv = r.level == null ? '' : ` lv${r.level}`;
+    return `<div class="row">
+      <label>${r.label}</label>
+      <div class="track"><div class="fill${lv}" data-fill="${r.id}" style="width:${clampPct(r.pct)}%"></div></div>
+      <span class="value${lv}" data-value="${r.id}">${r.text}</span>
+    </div>`;
+  }
+
+  function cardHtml(id, title, sub, extraLines, rows) {
+    return `<section class="card">
+      <div class="card-head">
+        <div class="head-left"><h2>${esc(title)}</h2>${sub ? `<p class="sub">${esc(sub)}</p>` : ''}</div>
+        <span class="extra" data-extra="${id}">${extraLines.map(esc).join('<br>')}</span>
+      </div>
+      ${rows.map(rowHtml).join('')}
+    </section>`;
+  }
+
+  function extraOf(s) {
+    const out = {};
+    const cpu = s.cpu || {};
+    out['cpu'] = cpu.temperature_c == null ? [] : [`${cpu.temperature_c} °C`];
+    (s.gpus || []).forEach((g, i) => {
+      const lines = [];
+      if (g.vram_used_mib != null && g.vram_total_mib) lines.push(`${gbs(g.vram_used_mib)} / ${gbs(g.vram_total_mib)}`);
+      if (g.power_current_w != null || g.power_max_w != null) lines.push(`${fmtW(g.power_current_w)} / ${fmtW(g.power_max_w)} W`);
+      out[`gpu${i}`] = lines;
+    });
+    const ram = s.ram || {};
+    out['ram'] = ram.total_mib ? [`${gbs(ram.used_mib)} / ${gbs(ram.total_mib)}`] : [];
+    return out;
+  }
+
+  function rowsOf(s) {
+    const rows = [];
+    const cpu = s.cpu || {};
+    rows.push({ id: 'cpu-util', label: 'Util', text: fmtPct(cpu.utilization_pct), level: lvlUtil(cpu.utilization_pct), pct: cpu.utilization_pct });
+    (s.gpus || []).forEach((g, i) => {
+      rows.push({ id: `g${i}-temp`, label: 'Temp', text: g.temperature_c == null ? '—' : `${g.temperature_c} °C`, level: lvlTemp(g.temperature_c), pct: g.temperature_c });
+      rows.push({ id: `g${i}-util`, label: 'Util', text: fmtPct(g.utilization_pct), level: lvlUtil(g.utilization_pct), pct: g.utilization_pct });
+    });
+    const ram = s.ram || {};
+    const rp = ram.total_mib ? (ram.used_mib / ram.total_mib) * 100 : null;
+    rows.push({ id: 'ram-used', label: 'Used', text: fmtPct(rp), level: lvlUtil(rp), pct: rp });
+    return rows;
+  }
+
+  function buildAll(s) {
+    const cpu = s.cpu || {};
+    const extras = extraOf(s);
+    const rows = rowsOf(s);
+    let html = cardHtml('cpu', 'CPU', cpu.name || '', extras['cpu'], rows.slice(0, 1));
+    (s.gpus || []).forEach((g, i) => {
+      html += cardHtml(`gpu${i}`, `GPU ${i}`, g.name || '', extras[`gpu${i}`], rows.slice(1 + i * 2, 3 + i * 2));
+    });
+    html += cardHtml('ram', 'RAM', '', extras['ram'], rows.slice(-1));
+    cardsEl.innerHTML = html;
+  }
+
+  function updateRows(s) {
+    const extras = extraOf(s);
+    for (const id in extras) {
+      const el = cardsEl.querySelector(`[data-extra="${id}"]`);
+      if (el) el.innerHTML = extras[id].map(esc).join('<br>');
+    }
+    for (const r of rowsOf(s)) {
+      const fill = cardsEl.querySelector(`[data-fill="${r.id}"]`);
+      const val = cardsEl.querySelector(`[data-value="${r.id}"]`);
+      if (!fill || !val) continue;
+      fill.style.width = clampPct(r.pct) + '%';
+      for (const el of [fill, val]) {
+        el.classList.remove('lv0', 'lv1', 'lv2', 'lv3');
+        if (r.level != null) el.classList.add(`lv${r.level}`);
+      }
+      val.textContent = r.text;
+    }
+  }
+
+  let lastSig = '';
+  function render(s) {
+    const sig = (s.gpus || []).map(g => `${g.vendor}|${g.name || ''}|${g.vram_used_mib != null ? 'v' : ''}${g.power_current_w != null ? 'p' : ''}`).join(';') + '#' + ((s.cpu && s.cpu.name) || '');
+    if (sig !== lastSig) { buildAll(s); lastSig = sig; }
+    else { updateRows(s); }
+    setOnline(true);
+  }
+
+  /* ----------------------------------------------------------- polling */
+  function setOnline(v) {
+    dotEl.classList.toggle('online', v);
+    document.body.classList.toggle('offline', !v);
+  }
+
+  let inflight = false;
+  async function tick() {
+    if (inflight) return;
+    inflight = true;
+    try {
+      const r = await fetch('/stats', { cache: 'no-store' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      render(await r.json());
+    } catch (e) {
+      setOnline(false);
+    } finally {
+      inflight = false;
+    }
+  }
+
+  let timer = null;
+  function startTimer() {
+    if (timer) clearInterval(timer);
+    timer = setInterval(tick, getInterval() * 1000);
+  }
+
+  /* ------------------------------------------------------------- init */
+  applyTheme(store.get('theme') === 'light' ? 'light' : 'dark');
+  startTimer();
+  tick();
+})();
+</script>
+</body>
+</html>

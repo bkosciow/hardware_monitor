@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+venv/
+.venv/
+
+# Secrets — keep .env.example as the template
+.env
+
+# IDE / editor
+.idea/
+*.swp
+
+# Logs
+*.log
+
+# OS junk
+.DS_Store
+Thumbs.db
