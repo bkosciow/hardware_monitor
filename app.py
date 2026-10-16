@@ -293,6 +293,7 @@ def read_cpu_name():
 
 DASHBOARD_PATH = BASE_DIR / "web" / "index.html"
 ST_DASHBOARD_PATH = BASE_DIR / "web" / "st.html"
+CYBER_DASHBOARD_PATH = BASE_DIR / "web" / "cyber.html"
 
 
 def create_app(store):
@@ -309,6 +310,13 @@ def create_app(store):
     def st_dashboard():
         return HTMLResponse(
             content=ST_DASHBOARD_PATH.read_text(encoding="utf-8"),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app.get("/cyber", include_in_schema=False)
+    def cyber_dashboard():
+        return HTMLResponse(
+            content=CYBER_DASHBOARD_PATH.read_text(encoding="utf-8"),
             headers={"Cache-Control": "no-store"},
         )
 
