@@ -292,6 +292,7 @@ def read_cpu_name():
 # ---------------------------------------------------------------- HTTP API
 
 DASHBOARD_PATH = BASE_DIR / "web" / "index.html"
+ST_DASHBOARD_PATH = BASE_DIR / "web" / "st.html"
 
 
 def create_app(store):
@@ -301,6 +302,13 @@ def create_app(store):
     def dashboard():
         return HTMLResponse(
             content=DASHBOARD_PATH.read_text(encoding="utf-8"),
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app.get("/st", include_in_schema=False)
+    def st_dashboard():
+        return HTMLResponse(
+            content=ST_DASHBOARD_PATH.read_text(encoding="utf-8"),
             headers={"Cache-Control": "no-store"},
         )
 
