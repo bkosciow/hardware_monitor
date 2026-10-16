@@ -1,7 +1,7 @@
 # hardware_monitor
 
 Small REST API that exposes live hardware stats for PC:
-NVIDIA RTX, AMD Radeon AI PRO R9700, AMD CPU, RAM.
+NVIDIA RTX, AMD Radeon, AMD CPU, RAM.
 
 - `GET /` — mobile-first dashboard for a phone (see [Dashboard](#dashboard))
 - `GET /stats` — latest snapshot as JSON (refreshed in the background every `REFRESH_INTERVAL_SECONDS`)
