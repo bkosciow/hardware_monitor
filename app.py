@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Hardware monitor daemon.
 
-Collects GPU (NVIDIA x4 + AMD), CPU and RAM stats every REFRESH_INTERVAL_SECONDS
-and serves the latest snapshot as JSON on GET /stats.
+Collects GPU (NVIDIA x4 + AMD), CPU, RAM and disk free-space stats every
+REFRESH_INTERVAL_SECONDS and serves the latest snapshot as JSON on GET /stats.
 """
 
 import csv
@@ -30,6 +30,7 @@ NVIDIA_SMI_CMD = os.getenv("NVIDIA_SMI_CMD", "nvidia-smi")
 AMD_GPU_NAME = os.getenv("AMD_GPU_NAME", "AMD GPU")
 AMD_DRM_CARD = os.getenv("AMD_DRM_CARD", "")  # empty = auto-detect first AMD card
 CPU_TEMP_HWMON = os.getenv("CPU_TEMP_HWMON", "k10temp")
+DISK_PATHS = [p.strip() for p in os.getenv("DISK_PATHS", "/,/mnt/rem").split(",") if p.strip()]
 
 NVIDIA_QUERY = (
     "index,name,temperature.gpu,utilization.gpu,memory.total,memory.used,"
@@ -229,6 +230,31 @@ def read_ram():
     }
 
 
+# ---------------------------------------------------------------- Disk
+
+def read_disks(paths):
+    disks = []
+    for path in paths:
+        try:
+            st = os.statvfs(path)
+        except OSError as exc:
+            log.warning("statvfs failed for %s: %s", path, exc)
+            continue
+        total = st.f_blocks * st.f_frsize
+        # f_bavail is what a non-root writer can actually fill, so root-reserved
+        # blocks end up in used_mib; that is the free space a service can consume.
+        free = st.f_bavail * st.f_frsize
+        disks.append(
+            {
+                "path": path,
+                "total_mib": total // (1024 * 1024),
+                "used_mib": (total - free) // (1024 * 1024),
+                "free_mib": free // (1024 * 1024),
+            }
+        )
+    return disks
+
+
 # ---------------------------------------------------------------- Collector
 
 class StatsStore:
@@ -239,6 +265,7 @@ class StatsStore:
             "gpus": [],
             "cpu": {},
             "ram": {},
+            "disks": [],
         }
 
     def set(self, snapshot):
@@ -264,6 +291,7 @@ def build_snapshot(store_deps):
             "utilization_pct": store_deps["cpu_util"].sample(),
         },
         "ram": read_ram(),
+        "disks": read_disks(store_deps["disk_paths"]),
     }
 
 
@@ -340,6 +368,7 @@ def main():
         "cpu_name": read_cpu_name(),
         "cpu_hwmons": find_cpu_hwmons(),
         "cpu_util": CpuUtilization(),
+        "disk_paths": DISK_PATHS,
     }
     if deps["amd_device"] is None:
         log.warning("no AMD GPU found in /sys/class/drm")

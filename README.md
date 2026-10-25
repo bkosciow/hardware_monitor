@@ -1,7 +1,7 @@
 # hardware_monitor
 
 Small REST API that exposes live hardware stats for PC:
-NVIDIA RTX, AMD Radeon, AMD CPU, RAM.
+NVIDIA RTX, AMD Radeon, AMD CPU, RAM and free disk space.
 
 - `GET /` — mobile-first dashboard for a phone (see [Dashboard](#dashboard))
 - `GET /stats` — latest snapshot as JSON (refreshed in the background every `REFRESH_INTERVAL_SECONDS`)
@@ -15,6 +15,7 @@ Listens on all interfaces, port 5555 by default. Configuration lives in `.env`.
 
 - Horizontal 0–100 bars: temp + utilization per GPU, CPU utilization, RAM usage (extra: CPU temp, VRAM and power current/max per GPU as text)
 - Color steps — temp: green ≤40 °C, yellow ≤60, orange ≤80, red 81+; utilization: green ≤30 %, yellow ≤60, orange ≤85, red 86+
+- Disk free space: one bar per monitored mount (`DISK_PATHS`), bar = free %, number = free GB; free-space steps — green >50 %, yellow >25, orange >10, red ≤10
 - Auto-refresh every 2 s by default; change it with the ⚙ button — persisted in browser `localStorage`
 - Dark (near-black, night friendly) theme by default, light theme available — choice also persisted
 - Green/red dot next to the clock shows live/offline connection state; bars dim while offline
@@ -65,7 +66,11 @@ Note: `cpu.utilization_pct` is `null` on the very first sample (needs two /proc/
     }
   ],
   "cpu": {"name": "AMD Ryzen 7 3700X 8-Core Processor", "temperature_c": 38, "utilization_pct": 12.5},
-  "ram": {"total_mib": 65536, "used_mib": 24000, "available_mib": 41536}
+  "ram": {"total_mib": 65536, "used_mib": 24000, "available_mib": 41536},
+  "disks": [
+    {"path": "/", "total_mib": 936960, "used_mib": 571392, "free_mib": 365568},
+    {"path": "/mnt/rem", "total_mib": 936960, "used_mib": 448512, "free_mib": 488448}
+  ]
 }
 ```
 
@@ -78,6 +83,7 @@ Note: `cpu.utilization_pct` is `null` on the very first sample (needs two /proc/
 | CPU temperature | k10temp hwmon (`/sys/class/hwmon/*/temp*_input`) |
 | CPU utilization | `/proc/stat` delta between refresh cycles |
 | RAM | `/proc/meminfo` (used = total - available) |
+| Disk free space | `os.statvfs()` per mount in `DISK_PATHS` (free = blocks usable by a non-root writer, so root-reserved blocks count as used) |
 
 If a source fails on a given cycle the collector logs a warning and keeps serving; failed fields are `null`.
 

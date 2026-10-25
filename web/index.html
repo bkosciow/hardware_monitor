@@ -18,6 +18,7 @@
   --overlay: rgba(0, 0, 0, .55);
   /* temp: <=40 | <=60 | <=80 | 81+ */
   /* util: <=30 | <=60 | <=85 | 86+ */
+  /* disk free: >50 | >25 | >10 | <=10 */
   --c0: #22c55e;
   --c1: #facc15;
   --c2: #fb923c;
@@ -123,6 +124,9 @@ body.offline .card { opacity: .65; }
   letter-spacing: .09em;
   text-transform: uppercase;
   color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .track {
   position: relative;
@@ -330,12 +334,15 @@ body.offline .card { opacity: .65; }
   const clampPct = (v) => (Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 0);
   const lvlTemp = (t) => (t == null ? null : t <= 40 ? 0 : t <= 60 ? 1 : t <= 80 ? 2 : 3);
   const lvlUtil = (u) => (u == null ? null : u <= 30 ? 0 : u <= 60 ? 1 : u <= 85 ? 2 : 3);
+  const lvlFree = (p) => (p == null ? null : p > 50 ? 0 : p > 25 ? 1 : p > 10 ? 2 : 3);
   const fmtPct = (v) => (Number.isFinite(v) ? `${Math.round(v * 10) / 10}%` : '—');
   const gbs = (mib) => (mib == null ? '—' : `${Math.round((mib / 1024) * 10) / 10} GB`);
   const fmtW = (v) => (!Number.isFinite(v) ? '—' : String(Math.round(v * 10) / 10).replace(/\.0$/, ''));
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[c]));
+
+  const mountLabel = (p) => (p === '/' ? 'ROOT' : String(p).split('/').filter(Boolean).pop() || p);
 
   function rowHtml(r) {
     const lv = r.level == null ? '' : ` lv${r.level}`;
@@ -380,6 +387,10 @@ body.offline .card { opacity: .65; }
     const ram = s.ram || {};
     const rp = ram.total_mib ? (ram.used_mib / ram.total_mib) * 100 : null;
     rows.push({ id: 'ram-used', label: 'RAM', text: fmtPct(rp), level: lvlUtil(rp), pct: rp });
+    (s.disks || []).forEach((d, i) => {
+      const fp = d.total_mib ? (d.free_mib / d.total_mib) * 100 : null;
+      rows.push({ id: `d${i}-free`, label: mountLabel(d.path), text: gbs(d.free_mib), level: lvlFree(fp), pct: fp });
+    });
     (s.gpus || []).forEach((g, i) => {
       rows.push({ id: `g${i}-temp`, label: 'Temp', text: g.temperature_c == null ? '—' : `${g.temperature_c} °C`, level: lvlTemp(g.temperature_c), pct: g.temperature_c });
       rows.push({ id: `g${i}-util`, label: 'Util', text: fmtPct(g.utilization_pct), level: lvlUtil(g.utilization_pct), pct: g.utilization_pct });
@@ -391,9 +402,10 @@ body.offline .card { opacity: .65; }
     const cpu = s.cpu || {};
     const extras = extraOf(s);
     const rows = rowsOf(s);
-    let html = cardHtml('pc', 'PC', cpu.name || '', extras['pc'], rows.slice(0, 2));
+    const diskStart = 2 + (s.disks || []).length;
+    let html = cardHtml('pc', 'PC', cpu.name || '', extras['pc'], rows.slice(0, diskStart));
     (s.gpus || []).forEach((g, i) => {
-      html += cardHtml(`gpu${i}`, `GPU ${i}`, g.name || '', extras[`gpu${i}`], rows.slice(2 + i * 2, 4 + i * 2));
+      html += cardHtml(`gpu${i}`, `GPU ${i}`, g.name || '', extras[`gpu${i}`], rows.slice(diskStart + i * 2, diskStart + 2 + i * 2));
     });
     cardsEl.innerHTML = html;
   }
@@ -419,7 +431,7 @@ body.offline .card { opacity: .65; }
 
   let lastSig = '';
   function render(s) {
-    const sig = (s.gpus || []).map(g => `${g.vendor}|${g.name || ''}|${g.vram_used_mib != null ? 'v' : ''}${g.power_current_w != null ? 'p' : ''}`).join(';') + '#' + ((s.cpu && s.cpu.name) || '');
+    const sig = (s.gpus || []).map(g => `${g.vendor}|${g.name || ''}|${g.vram_used_mib != null ? 'v' : ''}${g.power_current_w != null ? 'p' : ''}`).join(';') + '#' + ((s.cpu && s.cpu.name) || '') + '#' + (s.disks || []).map(d => d.path).join(',');
     if (sig !== lastSig) { buildAll(s); lastSig = sig; }
     else { updateRows(s); }
     setOnline(true);
