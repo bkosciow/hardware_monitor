@@ -472,7 +472,7 @@ body.offline .card { opacity: .65; }
     rows.push({ id: 'ram-used', label: 'MEM', text: fmtPct(rp), level: lvlUtil(rp), pct: rp });
     (s.disks || []).forEach((d, i) => {
       const fp = d.total_mib ? (d.free_mib / d.total_mib) * 100 : null;
-      rows.push({ id: `d${i}-free`, label: mountLabel(d.path), text: gbs(d.free_mib), level: lvlFree(fp), pct: fp });
+      rows.push({ id: `d${i}-free`, label: mountLabel(d.path), text: gbs(d.free_mib), level: lvlFree(fp), pct: fp == null ? null : 100 - fp });
     });
     (s.gpus || []).forEach((g, i) => {
       rows.push({ id: `g${i}-temp`, label: 'TEMP', text: g.temperature_c == null ? '—' : `${g.temperature_c} °C`, level: lvlTemp(g.temperature_c), pct: g.temperature_c });
