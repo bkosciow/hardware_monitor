@@ -469,6 +469,22 @@ body.offline .card { opacity: .65; }
   startTimer();
   tick();
 })();
+
+  /* ------------------------------------------------- keep screen on */
+  /* Web Wake Lock — asks the phone never to turn off or dim this screen.
+     Browsers require the first call to come from a user gesture, so the
+     first tap anywhere on the page acquires it; it re-acquires
+     automatically whenever the tab returns to the foreground. */
+  (function () {
+    function acquire() {
+      if (!('wakeLock' in navigator)) return;
+      navigator.wakeLock.request('screen').catch(function () {});
+    }
+    document.addEventListener('pointerdown', acquire, { once: true });
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') acquire();
+    });
+  })();
 </script>
 </body>
 </html>
