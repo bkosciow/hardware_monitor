@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Hardware monitor daemon.
 
-Collects GPU (NVIDIA x4 + AMD), CPU, RAM and disk free-space stats every
+Collects GPU (NVIDIA + AMD), CPU, RAM and disk free-space stats every
 REFRESH_INTERVAL_SECONDS and serves the latest snapshot as JSON on GET /stats.
 """
 
