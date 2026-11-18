@@ -29,8 +29,8 @@ REFRESH_INTERVAL = float(os.getenv("REFRESH_INTERVAL_SECONDS", "1"))
 NVIDIA_SMI_CMD = os.getenv("NVIDIA_SMI_CMD", "nvidia-smi")
 AMD_GPU_NAME = os.getenv("AMD_GPU_NAME", "AMD GPU")
 AMD_DRM_CARD = os.getenv("AMD_DRM_CARD", "")  # empty = auto-detect first AMD card
-CPU_TEMP_HWMON = os.getenv("CPU_TEMP_HWMON", "k10temp")
-DISK_PATHS = [p.strip() for p in os.getenv("DISK_PATHS", "/,/mnt/rem").split(",") if p.strip()]
+CPU_TEMP_HWMON = os.getenv("CPU_TEMP_HWMON", "coretemp")
+DISK_PATHS = [p.strip() for p in os.getenv("DISK_PATHS", "/").split(",") if p.strip()]
 
 NVIDIA_QUERY = (
     "index,name,temperature.gpu,utilization.gpu,memory.total,memory.used,"
@@ -287,6 +287,9 @@ def build_snapshot(store_deps):
         "gpus": gpus,
         "cpu": {
             "name": store_deps["cpu_name"],
+            "sockets": store_deps["cpu_topology"]["sockets"],
+            "cores": store_deps["cpu_topology"]["cores"],
+            "threads": store_deps["cpu_topology"]["threads"],
             "temperature_c": read_cpu_temperature(store_deps["cpu_hwmons"]),
             "utilization_pct": store_deps["cpu_util"].sample(),
         },
@@ -315,6 +318,30 @@ def read_cpu_name():
     except OSError:
         pass
     return "unknown"
+
+
+def read_cpu_topology():
+    """Online CPU topology: sockets, physical cores and logical threads."""
+    sockets, cores = set(), set()
+    for topo in sorted(Path("/sys/devices/system/cpu").glob("cpu[0-9]*/topology")):
+        try:
+            pkg = (topo / "physical_package_id").read_text().strip()
+            core = (topo / "core_id").read_text().strip()
+        except OSError:
+            continue
+        sockets.add(pkg)
+        cores.add((pkg, core))
+    threads = None
+    try:
+        with open("/proc/stat") as f:
+            threads = sum(1 for line in f if line.startswith("cpu") and line[3:4].isdigit())
+    except OSError:
+        pass
+    return {
+        "sockets": len(sockets) or None,
+        "cores": len(cores) or None,
+        "threads": threads,
+    }
 
 
 # ---------------------------------------------------------------- HTTP API
@@ -366,6 +393,7 @@ def main():
     deps = {
         "amd_device": find_amd_device(),
         "cpu_name": read_cpu_name(),
+        "cpu_topology": read_cpu_topology(),
         "cpu_hwmons": find_cpu_hwmons(),
         "cpu_util": CpuUtilization(),
         "disk_paths": DISK_PATHS,

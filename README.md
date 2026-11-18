@@ -65,7 +65,7 @@ Note: `cpu.utilization_pct` is `null` on the very first sample (needs two /proc/
       "power_max_w": 210
     }
   ],
-  "cpu": {"name": "AMD Ryzen 7 3700X 8-Core Processor", "temperature_c": 38, "utilization_pct": 12.5},
+  "cpu": {"name": "Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz", "sockets": 2, "cores": 28, "threads": 56, "temperature_c": 38, "utilization_pct": 12.5},
   "ram": {"total_mib": 65536, "used_mib": 24000, "available_mib": 41536},
   "disks": [
     {"path": "/", "total_mib": 936960, "used_mib": 571392, "free_mib": 365568},
@@ -80,7 +80,7 @@ Note: `cpu.utilization_pct` is `null` on the very first sample (needs two /proc/
 |---|---|
 | NVIDIA temp/util/VRAM | `nvidia-smi --query-gpu=...` (CSV) |
 | AMD temp/util/VRAM | `/sys/class/drm/cardN/device/` (gpu_busy_percent, mem_info_vram_*, hwmon temp1_input) |
-| CPU temperature | k10temp hwmon (`/sys/class/hwmon/*/temp*_input`) |
+| CPU temperature | `CPU_TEMP_HWMON` hwmon driver — all hwmons matching the name are read and the hottest `temp*_input` wins, so on multi-socket systems (e.g. dual Xeon, one `coretemp` hwmon per socket) the package max across all sockets is reported |
 | CPU utilization | `/proc/stat` delta between refresh cycles |
 | RAM | `/proc/meminfo` (used = total - available) |
 | Disk free space | `os.statvfs()` per mount in `DISK_PATHS` (free = blocks usable by a non-root writer, so root-reserved blocks count as used) |

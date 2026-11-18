@@ -353,8 +353,8 @@ body.offline .card { opacity: .65; }
     </div>`;
   }
 
-  function cardHtml(id, title, sub, extraLines, rows) {
-    return `<section class="card">
+  function cardHtml(id, title, sub, extraLines, rows, tip) {
+    return `<section class="card"${tip ? ` title="${esc(tip)}"` : ''}>
       <div class="card-head">
         <div class="head-left"><h2>${esc(title)}</h2>${sub ? `<p class="sub">${esc(sub)}</p>` : ''}</div>
         <span class="extra" data-extra="${id}">${extraLines.map(esc).join('<br>')}</span>
@@ -403,7 +403,9 @@ body.offline .card { opacity: .65; }
     const extras = extraOf(s);
     const rows = rowsOf(s);
     const diskStart = 2 + (s.disks || []).length;
-    let html = cardHtml('pc', 'PC', cpu.name || '', extras['pc'], rows.slice(0, diskStart));
+    const cpuSub = cpu.sockets ? `${cpu.sockets} × ${cpu.name || 'CPU'}` : (cpu.name || '');
+    const cpuTip = [cpu.sockets && `sockets: ${cpu.sockets}`, cpu.cores && `cores: ${cpu.cores}`, cpu.threads && `threads: ${cpu.threads}`].filter(Boolean).join(' · ');
+    let html = cardHtml('pc', 'PC', cpuSub, extras['pc'], rows.slice(0, diskStart), cpuTip);
     (s.gpus || []).forEach((g, i) => {
       html += cardHtml(`gpu${i}`, `GPU ${i}`, g.name || '', extras[`gpu${i}`], rows.slice(diskStart + i * 2, diskStart + 2 + i * 2));
     });
@@ -431,7 +433,7 @@ body.offline .card { opacity: .65; }
 
   let lastSig = '';
   function render(s) {
-    const sig = (s.gpus || []).map(g => `${g.vendor}|${g.name || ''}|${g.vram_used_mib != null ? 'v' : ''}${g.power_current_w != null ? 'p' : ''}`).join(';') + '#' + ((s.cpu && s.cpu.name) || '') + '#' + (s.disks || []).map(d => d.path).join(',');
+    const sig = (s.gpus || []).map(g => `${g.vendor}|${g.name || ''}|${g.vram_used_mib != null ? 'v' : ''}${g.power_current_w != null ? 'p' : ''}`).join(';') + '#' + ((s.cpu && s.cpu.name) || '') + '/' + ((s.cpu && s.cpu.sockets) || '') + '#' + (s.disks || []).map(d => d.path).join(',');
     if (sig !== lastSig) { buildAll(s); lastSig = sig; }
     else { updateRows(s); }
     setOnline(true);
